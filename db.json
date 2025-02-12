@@ -19,10 +19,6 @@
     {
       "commentId": 2629099280,
       "issueNumber": 236
-    },
-    {
-      "commentId": 2636121533,
-      "issueNumber": 256
     }
   ],
   "ubiquity-os-marketplace/command-ask": [
@@ -61,6 +57,12 @@
     {
       "commentId": 2630191908,
       "issueNumber": 57
+    }
+  ],
+  "Meniole/daemon-disqualifier": [
+    {
+      "commentId": 2652697854,
+      "issueNumber": 14
     }
   ]
 }
