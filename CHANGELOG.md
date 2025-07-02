@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 (2025-07-02)
+
+
+### Bug Fixes
+
+* **release-please:** fixed the `release-please` workflow to properly run and tag ([729f533](https://github.com/Meniole/daemon-disqualifier/commit/729f533bee3beb476d355cf64bb7206d9ec34a4f))
+
 ## 1.0.0 (2024-07-09)
 
 ### Features
