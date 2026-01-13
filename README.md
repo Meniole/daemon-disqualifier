@@ -5,6 +5,15 @@ tasks don't stall, and subtracts XP.
 
 The system utilizes a dedicated CRON workflow (cron.yml) that runs periodically to manage and update reminders. This CRON system maintains state in a database and automatically enables/disables itself based on pending updates. It tracks user activity by updating comment timestamps and handles the reminder notifications and automatic unassign of inactive users according to the configured time frames.
 
+## Features
+
+- **Automatic Unassignment**: Removes inactive assignees after configured thresholds
+- **Reminder System**: Sends periodic reminders before disqualification
+- **Bot Self-Unassign**: Allows bots to unassign themselves using commands like `/unassign`
+- **Pull Request Integration**: Links pull requests to issues for activity tracking
+- **Priority-based Processing**: Adjusts timing based on issue priority levels
+- **CRON-based Scheduling**: Efficient periodic processing with automatic workflow management
+
 ## Technical Architecture
 
 ### Overview

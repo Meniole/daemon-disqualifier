@@ -4,7 +4,9 @@ import { removeEntryFromDatabase } from "../helpers/remind-and-remove";
 import { commentUpdateMetadataPattern } from "../helpers/structured-metadata";
 import { getPriorityValue, parsePriceLabel } from "../helpers/task-metadata";
 import { updateTaskReminder } from "../helpers/task-update";
+import { parseIssueUrl } from "../helpers/github-url";
 import { ContextPlugin } from "../types/plugin-input";
+import { ListIssueForRepo } from "../types/github-types";
 import { formatMillisecondsToHumanReadable } from "./time-format";
 
 type IssueType = RestEndpointMethodTypes["issues"]["listForRepo"]["response"]["data"]["0"];
@@ -44,7 +46,24 @@ export async function watchUserActivity(context: ContextPlugin) {
   }
 
   if (isIssueComment(context)) {
-    if (commentUpdateMetadataPattern.test(context.payload.comment.body)) {
+    const commentBody = context.payload.comment.body;
+    const commenter = context.payload.comment.user;
+    
+    // Check if this is a bot self-unassign command
+    if (commenter?.type === "Bot" && isBotUnassignCommand(commentBody)) {
+      const issue = context.payload.issue;
+      const isAssigned = issue.assignees?.some(assignee => assignee?.id === commenter.id);
+      
+      if (isAssigned) {
+        logger.info(`Bot ${commenter.login} requested self-unassignment from ${issue.html_url}`);
+        await handleBotSelfUnassign(context, issue as ListIssueForRepo, commenter);
+        return { message: "Bot self-unassigned successfully" };
+      } else {
+        return { message: logger.warn(`Bot ${commenter.login} is not assigned to ${issue.html_url}, ignoring unassign request.`).logMessage.raw };
+      }
+    }
+    
+    if (commentUpdateMetadataPattern.test(commentBody)) {
       const repo = context.payload.repository;
       logger.debug(`> Watching user activity for repo: ${repo.name} (${repo.html_url})`);
       await updateReminders(context, repo);
@@ -104,4 +123,73 @@ async function updateReminders(context: ContextPlugin, repo: ContextPlugin["payl
       await removeEntryFromDatabase(context, issue);
     }
   }
+}
+
+/**
+ * Detects if a comment contains a bot self-unassign command
+ */
+function isBotUnassignCommand(commentBody: string): boolean {
+  const unassignPatterns = [
+    /^\/unassign\s*$/i,
+    /^\/unassign me\s*$/i,
+    /^@\w*\s+unassign me\s*$/i,
+    /^I cannot complete this task/i,
+    /^unassign me/i
+  ];
+  
+  return unassignPatterns.some(pattern => pattern.test(commentBody.trim()));
+}
+
+/**
+ * Handles bot self-unassignment from an issue
+ */
+async function handleBotSelfUnassign(
+  context: ContextPlugin, 
+  issue: ListIssueForRepo, 
+  botUser: { login: string; id: number }
+) {
+  const { octokit, logger, commentHandler } = context;
+  const { repo, owner, issue_number } = parseIssueUrl(issue.html_url);
+
+  // Create a log message for the unassignment
+  const logMessage = logger.info(
+    `@${botUser.login} has unassigned themselves from this task.`,
+    {
+      issue: issue.html_url,
+      botId: botUser.id,
+      reason: "self-requested"
+    }
+  );
+
+  // Post a comment about the unassignment
+  await commentHandler.postComment(
+    {
+      ...context,
+      payload: {
+        ...context.payload,
+        issue,
+        repository: {
+          owner: {
+            login: owner,
+          },
+          name: repo,
+        },
+      },
+    } as ContextPlugin,
+    logMessage,
+    { raw: true, updateComment: false }
+  );
+
+  // Remove the bot from assignees
+  await octokit.rest.issues.removeAssignees({
+    owner,
+    repo,
+    issue_number,
+    assignees: [botUser.login],
+  });
+
+  // Remove from database tracking
+  await removeEntryFromDatabase(context, issue);
+
+  logger.info(`Successfully removed bot ${botUser.login} from issue ${issue.html_url}`);
 }
